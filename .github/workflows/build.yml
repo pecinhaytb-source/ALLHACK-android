@@ -42,7 +42,17 @@ jobs:
         NDK_LIBCPP=$(find $ANDROID_HOME/ndk -name "libc++_shared.so" -path "*aarch64-linux-android*" | head -n 1)
         
         mkdir -p lib/arm64-v8a
-        cp ../libs/arm64-v8a/libffhook.so lib/arm64-v8a/
+        
+        # A MÁGICA ACONTECE AQUI (Procura a .so em qualquer lugar da pasta)
+        LIB_PATH=$(find .. -name "libffhook.so" | head -n 1)
+        
+        if [ -f "$LIB_PATH" ]; then
+            cp "$LIB_PATH" lib/arm64-v8a/
+        else
+            echo "ERRO FATAL: libffhook.so nao encontrada no repositorio!"
+            exit 1
+        fi
+        
         if [ -f "$NDK_LIBCPP" ]; then
             cp "$NDK_LIBCPP" lib/arm64-v8a/
         fi
