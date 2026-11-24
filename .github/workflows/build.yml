@@ -19,9 +19,8 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Extract Zips
+    - name: Extract libs.zip
       run: |
-        if [ -f res.zip ]; then unzip -q res.zip; fi
         if [ -f libs.zip ]; then unzip -q libs.zip; fi
 
     - name: Compile Java to DEX
@@ -31,11 +30,11 @@ jobs:
         javac -source 8 -target 8 -classpath $ANDROID_HOME/platforms/android-34/android.jar -d build/classes $(find src -name "*.java")
         $BT_DIR/d8 --lib $ANDROID_HOME/platforms/android-34/android.jar --output build/dex $(find build/classes -name "*.class")
 
-    - name: Compile Resources and Package APK
+    - name: Package APK
       run: |
         BT_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-        $BT_DIR/aapt2 compile --dir res -o build/compiled_res.zip
-        $BT_DIR/aapt2 link -o build/base.apk -I $ANDROID_HOME/platforms/android-34/android.jar --manifest AndroidManifest.xml build/compiled_res.zip
+        
+        $BT_DIR/aapt2 link -o build/base.apk -I $ANDROID_HOME/platforms/android-34/android.jar --manifest AndroidManifest.xml
         
         cd build
         zip -uj base.apk dex/classes.dex
