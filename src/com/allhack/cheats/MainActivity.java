@@ -1,65 +1,70 @@
-name: Build and Sign APK
+package com.allhack.cheats;
 
-on:
-  push:
-    branches: [ "main", "master" ]
-  workflow_dispatch:
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.widget.Toast;
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+public class MainActivity extends Activity {
 
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+        // Verifica se tem permissão pra desenhar por cima dos outros apps
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "DÊ PERMISSÃO DE SOBREPOSIÇÃO!", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, 123);
+                return; // Para aqui e espera o usuário dar a permissão
+            }
+        }
 
-    - name: Extract Zips
-      run: |
-        if [ -f res.zip ]; then unzip -q res.zip; fi
-        if [ -f libs.zip ]; then unzip -q libs.zip; fi
+        // Se já tem permissão, inicia o serviço e o jogo
+        IniciarTudo();
+    }
 
-    - name: Compile Java to DEX
-      run: |
-        BT_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-        mkdir -p build/classes build/dex
-        javac -source 8 -target 8 -classpath $ANDROID_HOME/platforms/android-34/android.jar -d build/classes $(find src -name "*.java")
-        $BT_DIR/d8 --lib $ANDROID_HOME/platforms/android-34/android.jar --output build/dex $(find build/classes -name "*.class")
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 123) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    IniciarTudo(); // Permissão concedida, inicia
+                } else {
+                    Toast.makeText(this, "SEM PERMISSÃO, O MENU NÃO VAI ABRIR!", Toast.LENGTH_LONG).show();
+                    finish();
+                }
+            }
+        }
+    }
 
-    - name: Compile Resources and Package APK
-      run: |
-        BT_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-        $BT_DIR/aapt2 compile --dir res -o build/compiled_res.zip
-        $BT_DIR/aapt2 link -o build/base.apk -I $ANDROID_HOME/platforms/android-34/android.jar --manifest AndroidManifest.xml build/compiled_res.zip
+    private void IniciarTudo() {
+        // 1. Inicia o painel flutuante
+        startService(new Intent(this, FloatingService.class));
+
+        // 2. Tenta abrir o Free Fire Max
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.dts.freefiremax");
         
-        cd build
-        zip -uj base.apk dex/classes.dex
-        
-        NDK_LIBCPP=$(find $ANDROID_HOME/ndk -name "libc++_shared.so" -path "*aarch64-linux-android*" | head -n 1)
-        
-        mkdir -p lib/arm64-v8a
-        cp ../libs/arm64-v8a/libffhook.so lib/arm64-v8a/
-        if [ -f "$NDK_LIBCPP" ]; then
-            cp "$NDK_LIBCPP" lib/arm64-v8a/
-        fi
-        
-        zip -ur base.apk lib
-        cd ..
+        if (launchIntent != null) {
+            Toast.makeText(this, "ABRINDO FREE FIRE MAX...", Toast.LENGTH_SHORT).show();
+            startActivity(launchIntent);
+        } else {
+            // Se não achou o FF Max, tenta o FF normal (com.dts.freefireth)
+            Intent ffNormal = getPackageManager().getLaunchIntentForPackage("com.dts.freefireth");
+            if (ffNormal != null) {
+                Toast.makeText(this, "ABRINDO FREE FIRE NORMAL...", Toast.LENGTH_SHORT).show();
+                startActivity(ffNormal);
+            } else {
+                Toast.makeText(this, "FREE FIRE NÃO INSTALADO!", Toast.LENGTH_LONG).show();
+            }
+        }
 
-    - name: Zipalign and Sign APK
-      run: |
-        BT_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-        $BT_DIR/zipalign -v -p 4 build/base.apk build/aligned.apk
-        keytool -genkeypair -v -keystore my-release-key.keystore -alias alias_name -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=Ollie, OU=Cheat, O=AllHack, L=SP, S=SP, C=BR"
-        $BT_DIR/apksigner sign --ks my-release-key.keystore --ks-pass pass:123456 --key-pass pass:123456 --out build/app-release.apk build/aligned.apk
-
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: FFcheat-APK
-        path: build/app-release.apk
+        // Fecha o app (vai ficar só o jogo e o painel flutuante)
+        finish();
+    }
+}
