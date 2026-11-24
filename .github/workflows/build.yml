@@ -21,9 +21,8 @@ jobs:
 
     - name: Extract Zips
       run: |
-        unzip -q src.zip
-        unzip -q res.zip
-        unzip -q libs.zip
+        if [ -f res.zip ]; then unzip -q res.zip; fi
+        if [ -f libs.zip ]; then unzip -q libs.zip; fi
 
     - name: Compile Java to DEX
       run: |
@@ -41,13 +40,12 @@ jobs:
         cd build
         zip -uj base.apk dex/classes.dex
         
-        # AQUI ESTÁ A MÁGICA: Pega a lib do NDK e coloca junto com a sua
         NDK_LIBCPP=$(find $ANDROID_HOME/ndk -name "libc++_shared.so" -path "*aarch64-linux-android*" | head -n 1)
         
         mkdir -p lib/arm64-v8a
         cp ../libs/arm64-v8a/libffhook.so lib/arm64-v8a/
         if [ -f "$NDK_LIBCPP" ]; then
-          cp "$NDK_LIBCPP" lib/arm64-v8a/
+            cp "$NDK_LIBCPP" lib/arm64-v8a/
         fi
         
         zip -ur base.apk lib
